@@ -25,35 +25,56 @@ def load_image(filepath):
         image = np.nan_to_num(data)
     else:
         image = io.imread(filepath)
-        # Convert RGB to grayscale if needed
         if image.ndim == 3:
             image = np.mean(image, axis=2)
-    # Normalize to 0-1
+
     image = (image - np.min(image)) / (np.max(image) - np.min(image))
     return image
 
+
 def load_sample_image():
-    """Load built-in sample image (Hubble Deep Field). Converts to grayscale if needed."""
-    sample = data.hubble_deep_field()[0:500, 0:500]  # crop smaller area
+    sample = data.hubble_deep_field()[0:500, 0:500]
     if sample.ndim == 3:
-        sample = np.mean(sample, axis=2)  # convert RGB to grayscale
+        sample = np.mean(sample, axis=2)
     sample = (sample - np.min(sample)) / (np.max(sample) - np.min(sample))
     run_in_thread(sample, "Sample Image")
 
+
 def denoise_image(image, progress_callback):
-    """Apply wavelet denoising with progress updates."""
     progress_callback(30, "Applying wavelet denoising...")
     denoised = restoration.denoise_wavelet(
-    image, channel_axis=None, rescale_sigma=True
+        image, channel_axis=None, rescale_sigma=True
     )
     progress_callback(90, "Finalizing...")
     return denoised
 
+def save_image():
+    """Save the denoised image as PNG/JPG/TIFF."""
+    global current_denoised
+    if current_denoised is None:
+        messagebox.showerror("Error", "No denoised image available to save.")
+        return
 
-# ANALYSIS GRAPH
+    filepath = filedialog.asksaveasfilename(
+        defaultextension=".png",
+        filetypes=[
+            ("PNG Image", "*.png"),
+            ("JPEG Image", "*.jpg"),
+            ("TIFF Image", "*.tiff"),
+            ("All Files", "*.*")
+        ],
+        title="Save Denoised Image"
+    )
+
+    if filepath:
+        try:
+            img = Image.fromarray(img_as_ubyte(current_denoised))
+            img.save(filepath)
+            messagebox.showinfo("Saved", f"Denoised image saved to:\n{filepath}")
+        except Exception as e:
+            messagebox.showerror("Error Saving Image", str(e))
 
 def show_analysis_graphs(original, denoised):
-    """Show histograms and residuals in a separate matplotlib window."""
     diff = original - denoised
     orig_std = np.std(original)
     den_std = np.std(denoised)
@@ -79,7 +100,8 @@ def show_analysis_graphs(original, denoised):
     plt.colorbar(im, ax=axes[1, 1])
 
     fig.suptitle(
-        f"Noise Reduction: σ(original)={orig_std:.4f}, σ(denoised)={den_std:.4f}, σ(diff)={diff_std:.4f}"
+        f"Noise Reduction: σ(original)={orig_std:.4f}, "
+        f"σ(denoised)={den_std:.4f}, σ(diff)={diff_std:.4f}"
     )
     plt.tight_layout()
     plt.show()
@@ -88,10 +110,8 @@ def show_analysis_graphs(original, denoised):
 # GUI DISPLAY
 
 def display_images(original, denoised):
-    """Display before/after images in Tkinter window."""
     global img_panel_original, img_panel_denoised, img_original_data, img_denoised_data
 
-    # Convert to 8-bit for display
     orig_disp = Image.fromarray(img_as_ubyte(original))
     den_disp = Image.fromarray(img_as_ubyte(denoised))
 
@@ -106,7 +126,6 @@ def display_images(original, denoised):
 
 
 def process_image(image, label):
-    """Main image denoising logic."""
     global current_original, current_denoised
     try:
         progress_bar["value"] = 10
@@ -126,6 +145,7 @@ def process_image(image, label):
         current_original, current_denoised = img, denoised
         display_images(img, denoised)
         show_graphs_button.config(state=tk.NORMAL)
+        save_button.config(state=tk.NORMAL)     # <--- enable saving
         status_label.config(text="Ready — click 'Show Graphs' for analysis")
 
     except Exception as e:
@@ -134,8 +154,8 @@ def process_image(image, label):
 
 
 def run_in_thread(image_or_path, label="Image"):
-    """Run image processing in separate thread."""
     show_graphs_button.config(state=tk.DISABLED)
+    save_button.config(state=tk.DISABLED)
     threading.Thread(
         target=process_image,
         args=(image_or_path if isinstance(image_or_path, np.ndarray) else load_image(image_or_path), label),
@@ -155,13 +175,11 @@ def choose_file():
 # BUILD GUI
 root = tk.Tk()
 root.title("Wavelet Denoising Tool")
-root.geometry("800x600")
+root.geometry("900x650")
 
-# Title
 label = tk.Label(root, text="MSEF Pipeline Stage #1: Wavelet Denoising", font=("Arial", 16))
 label.pack(pady=10)
 
-# Buttons
 button_frame = tk.Frame(root)
 button_frame.pack()
 
@@ -175,21 +193,23 @@ show_graphs_button = tk.Button(button_frame, text="Show Graphs", state=tk.DISABL
                                command=lambda: show_analysis_graphs(current_original, current_denoised))
 show_graphs_button.grid(row=0, column=2, padx=10)
 
-# Progress
+# Save button 
+save_button = tk.Button(button_frame, text="Save Denoised Image", state=tk.DISABLED, command=save_image)
+save_button.grid(row=0, column=3, padx=10)
+
 progress_bar = ttk.Progressbar(root, orient="horizontal", length=500, mode="determinate")
 progress_bar.pack(pady=10)
 
 status_label = tk.Label(root, text="Idle", font=("Arial", 10))
 status_label.pack(pady=10)
 
-# Image panels
 image_frame = tk.Frame(root)
 image_frame.pack(pady=10)
 
 img_panel_original = tk.Label(image_frame)
 img_panel_original.grid(row=0, column=0, padx=15)
+
 img_panel_denoised = tk.Label(image_frame)
 img_panel_denoised.grid(row=0, column=1, padx=15)
 
-# Start GUI loop
 root.mainloop()
