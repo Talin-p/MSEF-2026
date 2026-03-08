@@ -180,6 +180,7 @@ class Stage3LightcurveApp:
             df = pd.read_csv(path)
             # expect columns star_id and lc_file (or x,y)
             self.master_catalog = df
+            self.master_catalog_path = path
             self.lc_folder = os.path.dirname(path)
             self.lc_path = None
             # populate listbox with entries for user selection
@@ -380,7 +381,7 @@ class Stage3LightcurveApp:
             if run_bls:
                 try:
                     self.log("Running BLS on residuals...")
-                    res = y - y_pred * baseline
+                    res = y - y_pred_scaled
                     # BLS expects time in days and flux normalized around zero baseline:
                     bls = BoxLeastSquares(t, res)
                     # heuristics for periods: from 0.02*span to 0.5*span (user can tune later)

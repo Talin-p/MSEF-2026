@@ -96,6 +96,8 @@ def load_image_and_time(path):
 
 def detect_sources_on_ref(image, fwhm=3.0, threshold_sigma=5.0, max_sources=None):
     mean, median, std = sigma_clipped_stats(image, sigma=3.0)
+    if not np.isfinite(std) or std <= 0:
+        return [], np.zeros((0,2))
     daofind = DAOStarFinder(fwhm=fwhm, threshold=threshold_sigma * std)
     sources = daofind(image - median)
     if sources is None:
@@ -429,14 +431,15 @@ class Stage2GUI:
                             y_bls = norm_flux[mask] - 1.0
                             model = BoxLeastSquares(t_bls, y_bls)
                             tspan = t_bls.max() - t_bls.min()
-                            min_period = max(BLS_MIN_PERIOD, 0.5*(tspan/1000.0))
+                            min_period = max(BLS_MIN_PERIOD, 0.5 * (tspan / 1000.0))
                             max_period = min(BLS_MAX_PERIOD, tspan)
-                            periods = np.linspace(min_period, max_period, BLS_N_PERIODS)
-                            duration = 0.05
-                            res = model.power(periods, duration)
-                            idx = np.nanargmax(res.power)
-                            bls_period = float(res.period[idx])
-                            bls_power = float(res.power[idx])
+                            if np.isfinite(min_period) and np.isfinite(max_period) and max_period > min_period:
+                                periods = np.linspace(min_period, max_period, BLS_N_PERIODS)
+                                duration = 0.05
+                                res = model.power(periods, duration)
+                                idx = np.nanargmax(res.power)
+                                bls_period = float(res.period[idx])
+                                bls_power = float(res.power[idx])
                     except Exception:
                         pass
 
