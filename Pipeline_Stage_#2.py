@@ -122,6 +122,13 @@ def measure_apertures(image, positions, aperture_radius=APERTURE_RADIUS,
     sky_mean = sky_total / annulus_area
     return aper_sum, sky_mean
 
+def ensure_numeric_array(values):
+    arr = np.asarray(values)
+    if np.issubdtype(arr.dtype, np.number):
+        return arr.astype(float, copy=False)
+    flat = pd.to_numeric(pd.Series(arr.ravel()), errors="coerce").to_numpy(dtype=float)
+    return flat.reshape(arr.shape)
+
 # GUI Application
 class Stage2GUI:
     def __init__(self, root):
@@ -388,6 +395,7 @@ class Stage2GUI:
                 time.sleep(0.01)
 
             # times normalize
+            times = ensure_numeric_array(times)
             valid_times = times[np.isfinite(times)]
             if valid_times.size == 0:
                 t0 = 0.0
@@ -398,8 +406,8 @@ class Stage2GUI:
             # write per-star lightcurves and compute metrics + optional BLS
             master_rows = []
             for sid in range(n_sources):
-                flux = flux_matrix[sid, :]
-                bg = bg_matrix[sid, :]
+                flux = ensure_numeric_array(flux_matrix[sid, :])
+                bg = ensure_numeric_array(bg_matrix[sid, :])
                 good = np.isfinite(flux)
                 n_points = int(np.sum(good))
                 if n_points < 5:
