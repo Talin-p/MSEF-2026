@@ -28,7 +28,13 @@ def load_image(filepath):
         if image.ndim == 3:
             image = np.mean(image, axis=2)
 
-    image = (image - np.min(image)) / (np.max(image) - np.min(image))
+    image = np.asarray(image, dtype=float)
+    min_val = np.min(image)
+    max_val = np.max(image)
+    scale = max_val - min_val
+    if scale <= 0:
+        return np.zeros_like(image, dtype=float)
+    image = (image - min_val) / scale
     return image
 
 
@@ -156,11 +162,14 @@ def process_image(image, label):
 def run_in_thread(image_or_path, label="Image"):
     show_graphs_button.config(state=tk.DISABLED)
     save_button.config(state=tk.DISABLED)
-    threading.Thread(
-        target=process_image,
-        args=(image_or_path if isinstance(image_or_path, np.ndarray) else load_image(image_or_path), label),
-        daemon=True
-    ).start()
+    def _worker():
+        if isinstance(image_or_path, np.ndarray):
+            image = image_or_path
+        else:
+            image = load_image(image_or_path)
+        process_image(image, label)
+
+    threading.Thread(target=_worker, daemon=True).start()
 
 
 def choose_file():
